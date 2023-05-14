@@ -17,28 +17,31 @@
 Run with `python3 setup.py sdist bdist_wheel`.
 """
 
-# TODO(b/188859752): deprecate distutils
-from distutils.command import build
-
 import platform
 import shutil
 import subprocess
+# TODO(b/188859752): deprecate distutils
+from distutils.command import build
 
-from setuptools import Command
-from setuptools import setup
+from setuptools import Command, setup
 
-# TODO(b/174880612): reduce dependency resolution search space
 REQUIRED_PACKAGES = [
     'absl-py>=0.9,<1.1',
     'jinja2>=3.1,<3.2',
     'matplotlib>=3.2.0,<4',
     'jsonschema>=3.2.0,<4',
-    'tensorflow-model-analysis>=0.36.0,<0.37.0',
-    'tensorflow-metadata>=1.5.0,<1.6.0',
-    'tfx>=1.5.0,<1.6.0',
-    'ml-metadata>=1.5.0,<1.6.0',
-    'dataclasses;python_version<"3.7"',
+    'tensorflow-data-validation>=1.5.0,<2.0.0',
+    'tensorflow-model-analysis>=0.36.0,<0.42.0',
+    'tensorflow-metadata>=1.5.0,<2.0.0',
+    'ml-metadata>=1.5.0,<2.0.0',
 ]
+
+TESTS_REQUIRE = [
+    'pytest',
+    'tensorflow-datasets>=4.8.2',
+]
+
+EXTRAS_REQUIRE = {'test': TESTS_REQUIRE}
 
 # Get version from version module.
 with open('model_card_toolkit/version.py') as fp:
@@ -74,7 +77,6 @@ class _BuildCommand(build.build):
 
 class _BazelBuildCommand(Command):
   """Build Bazel artifacts and move generated files."""
-
   def initialize_options(self):
     pass
 
@@ -86,18 +88,21 @@ class _BazelBuildCommand(Command):
     if not self._bazel_cmd:
       raise RuntimeError(
           'Could not find "bazel" or "bazelisk" binary. Please visit '
-          'https://docs.bazel.build/versions/master/install.html for '
-          'installation instruction.')
+          'https://docs.bazel.build/versions/main/install.html for '
+          'installation instruction.'
+      )
     self._additional_build_options = []
     if platform.system() == 'Darwin':  # see b/175182911 for context
       self._additional_build_options = ['--macos_minimum_os=10.9']
 
   def run(self):
-    subprocess.check_call([
-        self._bazel_cmd, 'run', '--verbose_failures',
-        *self._additional_build_options,
-        'model_card_toolkit:move_generated_files'
-    ])
+    subprocess.check_call(
+        [
+            self._bazel_cmd, 'run', '--verbose_failures',
+            *self._additional_build_options,
+            'model_card_toolkit:move_generated_files'
+        ]
+    )
 
 
 setup(
@@ -110,16 +115,20 @@ setup(
     author='Google LLC',
     author_email='tensorflow-extended-dev@googlegroups.com',
     packages=[
-        'model_card_toolkit', 'model_card_toolkit.documentation',
-        'model_card_toolkit.documentation.examples', 'model_card_toolkit.proto',
-        'model_card_toolkit.tfx', 'model_card_toolkit.utils'
+        'model_card_toolkit',
+        'model_card_toolkit.documentation',
+        'model_card_toolkit.documentation.examples',
+        'model_card_toolkit.proto',
+        'model_card_toolkit.tfx',
+        'model_card_toolkit.utils',
     ],
     package_data={
         'model_card_toolkit': ['schema/**/*.json', 'template/**/*.jinja']
     },
-    python_requires='>=3.6,<4',
+    python_requires='>=3.7,<4',
     install_requires=REQUIRED_PACKAGES,
-    tests_require=REQUIRED_PACKAGES,
+    tests_require=TESTS_REQUIRE,
+    extras_require=EXTRAS_REQUIRE,
     # PyPI package information.
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -130,7 +139,8 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3 :: Only',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Topic :: Scientific/Engineering',
         'Topic :: Scientific/Engineering :: Mathematics',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
@@ -143,4 +153,5 @@ setup(
     cmdclass={
         'build': _BuildCommand,
         'bazel_build': _BazelBuildCommand,
-    })
+    }
+)
